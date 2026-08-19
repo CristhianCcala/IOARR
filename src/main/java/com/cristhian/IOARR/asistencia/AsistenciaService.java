@@ -1,8 +1,10 @@
 package com.cristhian.IOARR.asistencia;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +26,9 @@ public class AsistenciaService {
 
     public static final LocalTime HORA_LIMITE_ENTRADA = LocalTime.of(8, 0);
 
+    private static final ZoneId ZONA_PERU = ZoneId.of("America/Lima");
+    private static final Clock CLOCK_PERU = Clock.system(ZONA_PERU);
+
     private final AsistenciaRepository asistenciaRepository;
     private final UsuarioRepository usuarioRepository;
 
@@ -34,14 +39,14 @@ public class AsistenciaService {
 
     @Transactional
     public AsistenciaResponse marcarEntrada(Usuario usuario) {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(CLOCK_PERU);
         if (asistenciaRepository.existsByUsuarioAndFecha(usuario, hoy)) {
             throw new IllegalStateException("El usuario ya registró asistencia hoy");
         }
         Asistencia asistencia = new Asistencia();
         asistencia.setUsuario(usuario);
         asistencia.setFecha(hoy);
-        asistencia.setHoraEntrada(LocalTime.now());
+        asistencia.setHoraEntrada(LocalTime.now(CLOCK_PERU));
         asistencia.setEstado(asistencia.getHoraEntrada().isAfter(HORA_LIMITE_ENTRADA)
                 ? EstadoAsistencia.TARDE
                 : EstadoAsistencia.PRESENTE);
@@ -50,31 +55,31 @@ public class AsistenciaService {
 
     @Transactional
     public AsistenciaResponse marcarSalida(Usuario usuario) {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(CLOCK_PERU);
         Asistencia asistencia = asistenciaRepository.findByUsuarioAndFecha(usuario, hoy)
                 .orElseThrow(() -> new IllegalStateException("No hay entrada registrada hoy"));
         if (asistencia.getHoraSalida() != null) {
             throw new IllegalStateException("El usuario ya registró salida hoy");
         }
-        asistencia.setHoraSalida(LocalTime.now());
+        asistencia.setHoraSalida(LocalTime.now(CLOCK_PERU));
         return toResponse(asistenciaRepository.save(asistencia));
     }
 
     @Transactional
     public AsistenciaResponse marcarSalidaAlmuerzo(Usuario usuario) {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(CLOCK_PERU);
         Asistencia asistencia = asistenciaRepository.findByUsuarioAndFecha(usuario, hoy)
                 .orElseThrow(() -> new IllegalStateException("No hay entrada registrada hoy"));
         if (asistencia.getHoraSalidaAlmuerzo() != null) {
             throw new IllegalStateException("El usuario ya registró salida a almuerzo hoy");
         }
-        asistencia.setHoraSalidaAlmuerzo(LocalTime.now());
+        asistencia.setHoraSalidaAlmuerzo(LocalTime.now(CLOCK_PERU));
         return toResponse(asistenciaRepository.save(asistencia));
     }
 
     @Transactional
     public AsistenciaResponse marcarRetornoAlmuerzo(Usuario usuario) {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(CLOCK_PERU);
         Asistencia asistencia = asistenciaRepository.findByUsuarioAndFecha(usuario, hoy)
                 .orElseThrow(() -> new IllegalStateException("No hay entrada registrada hoy"));
         if (asistencia.getHoraSalidaAlmuerzo() == null) {
@@ -83,7 +88,7 @@ public class AsistenciaService {
         if (asistencia.getHoraEntradaAlmuerzo() != null) {
             throw new IllegalStateException("El usuario ya registró retorno de almuerzo hoy");
         }
-        asistencia.setHoraEntradaAlmuerzo(LocalTime.now());
+        asistencia.setHoraEntradaAlmuerzo(LocalTime.now(CLOCK_PERU));
         return toResponse(asistenciaRepository.save(asistencia));
     }
 
