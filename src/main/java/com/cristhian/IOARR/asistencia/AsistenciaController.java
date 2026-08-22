@@ -30,6 +30,20 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/asistencias")
 public class AsistenciaController {
 
+    @GetMapping("/public")
+    public ResponseEntity<List<AsistenciaResponse>> publico() {
+        return ResponseEntity.ok(asistenciaService.listar(null));
+    }
+
+    @GetMapping("/public/reporte")
+    @PreAuthorize("permitAll")
+    public ResponseEntity<List<ReporteResponse>> publicoReporte(
+            @RequestParam(required = false) Long usuarioId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        return ResponseEntity.ok(asistenciaService.reporte(usuarioId, desde, hasta));
+    }
+
     private final AsistenciaService asistenciaService;
 
     public AsistenciaController(AsistenciaService asistenciaService) {
