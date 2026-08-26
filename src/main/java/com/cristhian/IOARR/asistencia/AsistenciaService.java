@@ -1,12 +1,16 @@
 package com.cristhian.IOARR.asistencia;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -202,31 +206,78 @@ public class AsistenciaService {
 
     @Transactional(readOnly = true)
     public List<ReporteResponse> reporte(Long usuarioId, LocalDate desde, LocalDate hasta) {
-        Usuario usuario = null;
+        List<Usuario> usuarios;
         if (usuarioId != null) {
-            usuario = usuarioRepository.findById(usuarioId)
+            Usuario u = usuarioRepository.findById(usuarioId)
                     .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado: " + usuarioId));
+            usuarios = List.of(u);
+        } else {
+            usuarios = usuarioRepository.findAll();
         }
 
-        List<ReporteResponse> resumen = listarParaReporte(usuarioId, desde, hasta).stream()
-                .map(r -> r)
-                .collect(java.util.stream.Collectors.toMap(
-                        a -> a.usuarioId() + "|" + a.usuario(),
-                        this::toReporte,
-                        this::acumular,
-                        java.util.LinkedHashMap::new))
-                .values()
-                .stream()
-                .map(ReporteDatos::toResponse)
-                .toList();
-
-        if (usuario != null && resumen.stream().noneMatch(r -> r.usuarioId().equals(usuarioId))) {
-            resumen = new java.util.ArrayList<>(resumen);
-            resumen.add(new ReporteResponse(usuarioId,
-                    usuario.getNombre() + " " + usuario.getApellido(),
-                    0, 0, 0, 0, 0, "0:00"));
+        if (desde == null || hasta == null) {
+            return usuarios.stream()
+                    .map(u -> new ReporteResponse(u.getId(),
+                            u.getNombre() + " " + u.getApellido(),
+                            0, 0, 0, 0, 0, "0:00"))
+                    .toList();
         }
+
+        long diasLaborables = calcularDiasLaborables(desde, hasta);
+
+        List<AsistenciaResponse> asistencias = listarParaReporte(usuarioId, desde, hasta);
+
+        Map<Long, List<AsistenciaResponse>> asistenciasPorUsuario = asistencias.stream()
+                .collect(Collectors.groupingBy(AsistenciaResponse::usuarioId));
+
+        List<ReporteResponse> resumen = new ArrayList<>();
+
+        for (Usuario u : usuarios) {
+            List<AsistenciaResponse> userAsistencias = asistenciasPorUsuario.getOrDefault(u.getId(), List.of());
+
+            long total = userAsistencias.size();
+            long presentes = 0;
+            long tardes = 0;
+            long ausentes = 0;
+            long diasFaltados = 0;
+            long minutosTarde = 0;
+
+            for (AsistenciaResponse a : userAsistencias) {
+                switch (a.estado()) {
+                    case PRESENTE -> presentes++;
+                    case TARDE -> {
+                        tardes++;
+                        minutosTarde += minutosTarde(a);
+                    }
+                    case AUSENTE -> ausentes++;
+                    case PERMISO, JUSTIFICADO, VACACIONES -> {}
+                }
+            }
+
+            long diasConRegistro = presentes + tardes + ausentes;
+            diasFaltados = diasLaborables - diasConRegistro;
+            if (diasFaltados < 0) diasFaltados = 0;
+
+            resumen.add(new ReporteResponse(u.getId(),
+                    u.getNombre() + " " + u.getApellido(),
+                    total, presentes, tardes, ausentes,
+                    diasFaltados, formatoHHMM(minutosTarde)));
+        }
+
         return resumen;
+    }
+
+    private long calcularDiasLaborables(LocalDate desde, LocalDate hasta) {
+        long count = 0;
+        LocalDate fecha = desde;
+        while (!fecha.isAfter(hasta)) {
+            DayOfWeek dow = fecha.getDayOfWeek();
+            if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) {
+                count++;
+            }
+            fecha = fecha.plusDays(1);
+        }
+        return count;
     }
 
     private ReporteDatos toReporte(AsistenciaResponse r) {
