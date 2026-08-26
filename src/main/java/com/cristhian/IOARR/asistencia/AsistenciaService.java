@@ -215,17 +215,9 @@ public class AsistenciaService {
             usuarios = usuarioRepository.findAll();
         }
 
-        if (desde == null || hasta == null) {
-            return usuarios.stream()
-                    .map(u -> new ReporteResponse(u.getId(),
-                            u.getNombre() + " " + u.getApellido(),
-                            0, 0, 0, 0, 0, "0:00"))
-                    .toList();
-        }
+        LocalDate fechaFin = hasta != null ? hasta : LocalDate.now(CLOCK_PERU);
 
-        long diasLaborables = calcularDiasLaborables(desde, hasta);
-
-        List<AsistenciaResponse> asistencias = listarParaReporte(usuarioId, desde, hasta);
+        List<AsistenciaResponse> asistencias = listarParaReporte(usuarioId, desde, fechaFin);
 
         Map<Long, List<AsistenciaResponse>> asistenciasPorUsuario = asistencias.stream()
                 .collect(Collectors.groupingBy(AsistenciaResponse::usuarioId));
@@ -254,14 +246,27 @@ public class AsistenciaService {
                 }
             }
 
-            long diasConRegistro = presentes + tardes + ausentes;
-            diasFaltados = diasLaborables - diasConRegistro;
-            if (diasFaltados < 0) diasFaltados = 0;
+            long diasFaltadosCalculados;
+            if (!userAsistencias.isEmpty()) {
+                LocalDate primeraFecha = userAsistencias.stream()
+                        .map(AsistenciaResponse::fecha)
+                        .min(LocalDate::compareTo)
+                        .orElse(fechaFin);
+
+                LocalDate fechaInicioCalculo = (desde != null && desde.isAfter(primeraFecha)) ? desde : primeraFecha;
+
+                long diasLaborables = calcularDiasLaborables(fechaInicioCalculo, fechaFin);
+                long diasConRegistro = presentes + tardes + ausentes;
+                diasFaltadosCalculados = diasLaborables - diasConRegistro;
+                if (diasFaltadosCalculados < 0) diasFaltadosCalculados = 0;
+            } else {
+                diasFaltadosCalculados = 0;
+            }
 
             resumen.add(new ReporteResponse(u.getId(),
                     u.getNombre() + " " + u.getApellido(),
                     total, presentes, tardes, ausentes,
-                    diasFaltados, formatoHHMM(minutosTarde)));
+                    diasFaltadosCalculados, formatoHHMM(minutosTarde)));
         }
 
         return resumen;
