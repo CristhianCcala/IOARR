@@ -65,7 +65,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/asistencias/public", "/api/asistencias/public/reporte").permitAll()
+                .requestMatchers("/api/auth/login", "/api/asistencias/public", "/api/asistencias/public/reporte", "https://ioarr-web.criseral.com").permitAll()
                 .anyRequest().authenticated())
             .authenticationProvider(authenticationProvider)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
